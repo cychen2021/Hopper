@@ -37,6 +37,7 @@
 
 #include "config.h"
 #include "debug.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Debug.h"
@@ -102,7 +103,7 @@ struct ModuleCovInstrument {
     Int8PtrTy = PointerType::get(Int8Ty, 0);
     Int64PtrTy = PointerType::getUnqual(Int64Ty);
     NoSanMetaId = C.getMDKindID("nosanitize");
-    NoneMetaNode = MDNode::get(C, None);
+    NoneMetaNode = MDNode::get(C, std::nullopt);
 
     SAYF("start hopper coverage instrumentation..\n");
 
@@ -122,13 +123,13 @@ struct ModuleCovInstrument {
 
     HopperPrevLoc = new GlobalVariable(
         M, Int32Ty, false, GlobalValue::CommonLinkage,
-        ConstantInt::get(Int32Ty, 0xFFFFFFFF), "__hopper_prev_loc", 0,
-        GlobalVariable::GeneralDynamicTLSModel, 0, false);
+        ConstantInt::get(Int32Ty, 0xFFFFFFFF), "__hopper_prev_loc", nullptr,
+        GlobalVariable::GeneralDynamicTLSModel, 0);
 
     HopperContext =
         new GlobalVariable(M, Int32Ty, false, GlobalValue::CommonLinkage,
-                           ConstantInt::get(Int32Ty, 0), "__hopper_context", 0,
-                           GlobalVariable::GeneralDynamicTLSModel, 0, false);
+                           ConstantInt::get(Int32Ty, 0), "__hopper_context", nullptr,
+                           GlobalVariable::GeneralDynamicTLSModel, 0);
 
     TraceCmp = M.getOrInsertFunction("__hopper_trace_cmp", VoidTy, Int32Ty,
                                      Int64Ty, Int64Ty, Int32Ty);
@@ -147,7 +148,9 @@ struct ModuleCovInstrument {
   }
 
   void setValueNonSan(Value *v) {
-    if (Instruction *ins = dyn_cast<Instruction>(v)) setInsNonSan(ins);
+    if (Instruction *ins = dyn_cast<Instruction>(v)) {
+      setInsNonSan(ins);
+    }
   }
 
   u32 getRandomNum() {
@@ -167,7 +170,7 @@ struct ModuleCovInstrument {
   void countEdge(BasicBlock &BB) {
     if (skipBasicBlock()) return;
 
-    BasicBlock::iterator IP = BB.getFirstInsertionPt();
+    auto IP = BB.getFirstInsertionPt();
     Instruction *InsertPoint = &*(IP);
 
     /*
