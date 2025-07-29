@@ -459,9 +459,19 @@ pub fn read_list_with_program_from_file<R: AsRef<Path>, T: Deserialize>(
     // make sure the file is newest
     let created = file.metadata()?.modified()?;
     let now = std::time::SystemTime::now();
-    if now.duration_since(created)?.as_secs() > 10 {
-        crate::log!(warn, "the review file '{p:?}' is not the newest!! now: {now:?}, crated: {created:?}");
-        return Ok(vec![]);
+    match now.duration_since(created) {
+        Ok(duration) => {
+            if duration.as_secs() > 10 {
+                crate::log!(warn, "the review file '{p:?}' is not the newest!! now: {now:?}, crated: {created:?}");
+                return Ok(vec![]);
+            }
+        },
+        Err(_) => {
+            // File modification time is newer than current time (clock adjustment)
+            // This can happen due to system clock synchronization or time zone changes
+            crate::log!(warn, "review file '{p:?}' has future timestamp, proceeding anyway. now: {now:?}, created: {created:?}");
+            // Continue processing the file instead of failing
+        }
     }
     let reader = BufReader::new(&file);
     for line in reader.lines() {
